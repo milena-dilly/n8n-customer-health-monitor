@@ -1,0 +1,540 @@
+{
+  "name": "Customer Health Monitor – Weekly Risk Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7593455d-bf64-4cd3-a324-61767b4d1c62",
+      "name": "Every Monday 8am"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Accounts",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "8b367052-9439-48f8-9bb0-d0bfd908e0ef",
+      "name": "Get Accounts"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Customer Health Score: 0-100, five weighted signals\nconst today = new Date();\nconst daysBetween = (a, b) => Math.round((b - a) / 86400000);\n\nreturn $input.all().map(item => {\n  const c = item.json;\n  const seats = Number(c.seats_purchased) || 1;\n  const active = Number(c.active_users_30d) || 0;\n  const execNow = Number(c.executions_30d) || 0;\n  const execPrev = Number(c.executions_prev_30d) || 0;\n  const tickets = Number(c.support_tickets_30d) || 0;\n  const daysSinceContact = daysBetween(new Date(c.last_contact_date), today);\n  const daysToRenewal = daysBetween(today, new Date(c.renewal_date));\n\n  // 1. Adoption: share of purchased seats active in the last 30 days (35 pts)\n  const adoptionRate = Math.min(active / seats, 1);\n  const adoptionScore = adoptionRate * 35;\n\n  // 2. Usage trend: executions vs. previous 30 days (25 pts, 12.5 = flat)\n  const trend = execPrev > 0 ? (execNow - execPrev) / execPrev : 0;\n  const trendScore = Math.max(0, Math.min(25, 12.5 + trend * 25));\n\n  // 3. Support load (15 pts)\n  const supportScore = tickets <= 1 ? 15 : tickets <= 3 ? 10 : tickets <= 6 ? 5 : 0;\n\n  // 4. Engagement recency (15 pts)\n  const contactScore = daysSinceContact <= 30 ? 15 : daysSinceContact <= 60 ? 8 : 0;\n\n  // 5. Renewal proximity (10 pts)\n  const renewalScore = daysToRenewal > 120 ? 10 : daysToRenewal > 60 ? 6 : 2;\n\n  const score = Math.round(adoptionScore + trendScore + supportScore + contactScore + renewalScore);\n  const tier = score >= 70 ? 'Healthy' : score >= 45 ? 'Watch' : 'At Risk';\n\n  const drivers = [];\n  if (adoptionRate < 0.5) drivers.push(`Low adoption: ${active}/${seats} seats active`);\n  if (trend < -0.2) drivers.push(`Usage down ${Math.round(Math.abs(trend) * 100)}% vs. previous 30 days`);\n  if (tickets > 3) drivers.push(`${tickets} support tickets in 30 days`);\n  if (daysSinceContact > 60) drivers.push(`No CSM contact in ${daysSinceContact} days`);\n  if (daysToRenewal <= 90) drivers.push(`Renewal in ${daysToRenewal} days`);\n\n  return {\n    json: {\n      ...c,\n      health_score: score,\n      health_tier: tier,\n      adoption_rate_pct: Math.round(adoptionRate * 100),\n      usage_trend_pct: Math.round(trend * 100),\n      days_since_contact: daysSinceContact,\n      days_to_renewal: daysToRenewal,\n      risk_drivers: drivers.join('; ') || 'None'\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "a0bc1833-064a-4b87-a07e-804ba774df60",
+      "name": "Calculate Health Score"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Accounts",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "account_name": "={{ $json.account_name }}",
+            "health_score": "={{ $json.health_score }}",
+            "health_tier": "={{ $json.health_tier }}",
+            "risk_drivers": "={{ $json.risk_drivers }}",
+            "last_scored": "={{ $now.toFormat('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [
+            "account_name"
+          ],
+          "schema": [
+            {
+              "id": "account_name",
+              "displayName": "account_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "plan",
+              "displayName": "plan",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "arr_eur",
+              "displayName": "arr_eur",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "seats_purchased",
+              "displayName": "seats_purchased",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "active_users_30d",
+              "displayName": "active_users_30d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "executions_30d",
+              "displayName": "executions_30d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "executions_prev_30d",
+              "displayName": "executions_prev_30d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "support_tickets_30d",
+              "displayName": "support_tickets_30d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_contact_date",
+              "displayName": "last_contact_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "renewal_date",
+              "displayName": "renewal_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "csm_owner",
+              "displayName": "csm_owner",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "champion_name",
+              "displayName": "champion_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "champion_email",
+              "displayName": "champion_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "health_score",
+              "displayName": "health_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "health_tier",
+              "displayName": "health_tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_drivers",
+              "displayName": "risk_drivers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_scored",
+              "displayName": "last_scored",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        592,
+        48
+      ],
+      "id": "504b4582-d3e1-4514-8cce-7c6e105327c3",
+      "name": "Save score to sheet"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "cb359e0a-4f99-4a2a-9f5b-aeab09ccc73e",
+              "leftValue": "={{ $json.health_tier }}",
+              "rightValue": "Healthy",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        752,
+        32
+      ],
+      "id": "6c018d4b-e2fb-4a52-a094-5c3a0659c85a",
+      "name": "Needs attention?"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-5",
+          "cachedResultName": "Claude Sonnet 5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        800,
+        288
+      ],
+      "id": "d4e29202-6960-4e5a-83d7-075a5bd708e3",
+      "name": "Anthropic Chat Model"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Customer Success Manager at n8n covering EMEA enterprise accounts.\n\nAccount: {{ $json.account_name }} ({{ $json.plan }} plan, EUR {{ $json.arr_eur }} ARR)\nHealth score: {{ $json.health_score }}/100 ({{ $json.health_tier }})\nSeat adoption: {{ $json.adoption_rate_pct }}% of {{ $json.seats_purchased }} seats active in the last 30 days\nWorkflow executions (30 days): {{ $json.executions_30d }} (change vs. previous 30 days: {{ $json.usage_trend_pct }}%)\nSupport tickets (30 days): {{ $json.support_tickets_30d }}\nDays since last CSM contact: {{ $json.days_since_contact }}\nDays to renewal: {{ $json.days_to_renewal }}\nRisk drivers: {{ $json.risk_drivers }}\nChampion: {{ $json.champion_name }}\n\nWrite three sections in English, plain text, no markdown symbols:\nRISK SUMMARY: two sentences in business language on why this account is at risk and what is at stake commercially.\nNEXT ACTION: one concrete action for this week and the goal of that conversation.\nCHECK-IN EMAIL: a warm email to the champion, max 110 words. Do not mention scores or internal metrics. Offer a 30-minute workflow review and suggest one specific automation idea linked to the risk drivers.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        944,
+        32
+      ],
+      "id": "808d60e2-c28e-44f9-b61d-53aeb2ac13c0",
+      "name": "Write risk brief"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d852dfe4-9c42-4844-82fe-d9869d8fc474",
+              "name": "account_name",
+              "value": "={{ $('Needs attention?').item.json.account_name }}",
+              "type": "string"
+            },
+            {
+              "id": "f23a59bd-801e-4d3c-a1bd-03f682c137a2",
+              "name": "health_score",
+              "value": "={{ $('Needs attention?').item.json.health_score }}",
+              "type": "string"
+            },
+            {
+              "id": "e86b5f1d-f522-4c72-a40c-0b68b15c7bad",
+              "name": "health_tier",
+              "value": "={{ $('Needs attention?').item.json.health_tier }}",
+              "type": "string"
+            },
+            {
+              "id": "9d38b393-e4f8-4c39-a4b6-ce90b032ac5a",
+              "name": "arr_eur",
+              "value": "={{ $('Needs attention?').item.json.arr_eur }}",
+              "type": "string"
+            },
+            {
+              "id": "c78c153e-f09f-4ca5-94ea-b7845d11cf1d",
+              "name": "days_to_renewal",
+              "value": "={{ $('Needs attention?').item.json.days_to_renewal }}",
+              "type": "string"
+            },
+            {
+              "id": "b7985c2f-91b8-4677-a6dc-f314de6a4faa",
+              "name": "risk_drivers",
+              "value": "={{ $('Needs attention?').item.json.risk_drivers }}",
+              "type": "string"
+            },
+            {
+              "id": "35976246-8f7a-443e-9272-15cf471ff7fa",
+              "name": "csm_owner",
+              "value": "={{ $('Needs attention?').item.json.csm_owner }}",
+              "type": "string"
+            },
+            {
+              "id": "f8299d0f-419e-4b1c-8f90-64b8500c31a3",
+              "name": "ai_brief",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1312,
+        32
+      ],
+      "id": "fb30a502-1f74-4015-8dd3-38529c1e2e9c",
+      "name": "Attach brief to account"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Weekly digest: one email, riskiest accounts first\nconst accounts = $input.all()\n  .map(i => i.json)\n  .sort((a, b) => Number(a.health_score) - Number(b.health_score));\n\nconst fmt = n => Number(n || 0).toLocaleString('en-US');\nconst arrInPlay = accounts.reduce((sum, a) => sum + Number(a.arr_eur || 0), 0);\nconst atRisk = accounts.filter(a => a.health_tier === 'At Risk').length;\n\nconst cards = accounts.map(a => `\n  <h3 style=\"margin:24px 0 4px\">${a.account_name} · ${a.health_tier} (${a.health_score}/100)</h3>\n  <p style=\"margin:0 0 8px\"><b>ARR:</b> EUR ${fmt(a.arr_eur)} · <b>Renewal in:</b> ${a.days_to_renewal} days · <b>Owner:</b> ${a.csm_owner}</p>\n  <p style=\"margin:0 0 8px\"><b>Risk drivers:</b> ${a.risk_drivers}</p>\n  <div style=\"white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:6px\">${a.ai_brief}</div>\n`).join('<hr>');\n\nreturn [{\n  json: {\n    subject: `Customer Health Digest: ${accounts.length} accounts need attention (EUR ${fmt(arrInPlay)} ARR)`,\n    html: `<h2>Weekly Customer Health Digest</h2>\n<p>${accounts.length} accounts flagged, ${atRisk} at risk, EUR ${fmt(arrInPlay)} ARR in play.</p>\n${cards}`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        32
+      ],
+      "id": "c9d94bf9-7497-4a18-98da-d8b774e1bc19",
+      "name": "Build weekly digest"
+    },
+    {
+      "parameters": {
+        "sendTo": "you@example.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        32
+      ],
+      "id": "596a8c27-74dd-4c0c-8176-ce1f8112421a",
+      "name": "Send digest to CSM"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every Monday 8am": {
+      "main": [
+        [
+          {
+            "node": "Get Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Accounts": {
+      "main": [
+        [
+          {
+            "node": "Calculate Health Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Health Score": {
+      "main": [
+        [
+          {
+            "node": "Save score to sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Needs attention?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs attention?": {
+      "main": [
+        [
+          {
+            "node": "Write risk brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Write risk brief",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write risk brief": {
+      "main": [
+        [
+          {
+            "node": "Attach brief to account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach brief to account": {
+      "main": [
+        [
+          {
+            "node": "Build weekly digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build weekly digest": {
+      "main": [
+        [
+          {
+            "node": "Send digest to CSM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "Europe/Berlin",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "nodeGroups": [],
+  "tags": []
+}

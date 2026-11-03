@@ -1,0 +1,11 @@
+account_name,plan,arr_eur,seats_purchased,active_users_30d,executions_30d,executions_prev_30d,support_tickets_30d,last_contact_date,renewal_date,csm_owner,champion_name,champion_email,health_score,health_tier,risk_drivers,last_scored
+Nordlicht Logistics GmbH,Enterprise,48000,40,36,52000,47000,1,2026-10-20,2027-06-30,Milena D.,Jonas Weber,jonas.weber@example.com,,,,
+Brightpath Retail BV,Business,22000,25,9,8000,14000,5,2026-08-15,2027-01-15,Milena D.,Sanne de Vries,sanne.devries@example.com,,,,
+Atlas Fintech SA,Enterprise,65000,60,41,90000,95000,3,2026-10-01,2027-03-01,Milena D.,Lucas Moreau,lucas.moreau@example.com,,,,
+Kestrel Health AG,Business,30000,20,18,21000,15000,0,2026-10-28,2027-09-01,Milena D.,Lea Fischer,lea.fischer@example.com,,,,
+Polar Media Group,Starter,15000,15,5,3000,6500,2,2026-09-25,2026-12-20,Milena D.,Oliver Grant,oliver.grant@example.com,,,,
+Verde Energy Ltd,Enterprise,40000,35,24,30000,31000,2,2026-10-10,2027-05-15,Milena D.,Aisha Khan,aisha.khan@example.com,,,,
+Harbor Insurance Ltd,Enterprise,80000,100,48,60000,82000,7,2026-07-30,2027-02-10,Milena D.,Thomas Reid,thomas.reid@example.com,,,,
+Lumen Software GmbH,Business,25000,30,26,18000,16000,4,2026-10-15,2027-08-01,Milena D.,Nina Bauer,nina.bauer@example.com,,,,
+Cobalt Manufacturing SpA,Enterprise,55000,50,28,40000,44000,3,2026-09-01,2027-01-31,Milena D.,Marco Ricci,marco.ricci@example.com,,,,
+Fjord Travel AS,Business,18000,12,11,9500,9000,1,2026-10-30,2027-04-01,Milena D.,Ingrid Larsen,ingrid.larsen@example.com,,,,
