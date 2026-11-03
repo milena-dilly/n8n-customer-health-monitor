@@ -4,7 +4,7 @@ An n8n workflow that does the operational core of a Customer Success Manager's w
 
 Built by **Milena D.** as part of my application for the **Low-touch Customer Success Manager (EMEA)** role at n8n.
 
-![Workflow canvas](screenshots/workflow-canvas.png)
+![Workflow canvas](workflow-canvas.png)
 
 ## What it does
 
@@ -36,7 +36,7 @@ Five weighted signals, each mapped to what a CSM would actually act on:
 
 On the sample data the workflow flags 5 of 10 accounts — 3 At Risk, 2 Watch — with **EUR 237,000 ARR** in play.
 
-![Digest email](screenshots/digest-email.png)
+![Digest email](digest-email.png)
 
 ## Run it yourself
 
